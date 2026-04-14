@@ -10,7 +10,7 @@ const CATEGORIES = { material: 'Anyag', labor: 'Munka', design: 'Tervezés', per
 const TYPES = { expense: 'Kiadás', income: 'Bevétel', estimate: 'Becslés' }
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f43f5e']
 
-const EMPTY_FILTERS = { search: '', type: '', category: '', vendor: '', dateFrom: '', dateTo: '', amountMin: '', amountMax: '' }
+const EMPTY_FILTERS = { search: '', type: '', category: '', vendor: '', paidBy: '', dateFrom: '', dateTo: '', amountMin: '', amountMax: '' }
 
 function exportToCSV(entries) {
   const headers = ['Leírás', 'Típus', 'Kategória', 'Összeg (HUF)', 'Szállító / Partner', 'Számlaszám', 'Dátum']
@@ -40,6 +40,7 @@ function applyFilters(entries, filters) {
     if (filters.type && e.type !== filters.type) return false
     if (filters.category && e.category !== filters.category) return false
     if (filters.vendor && !(e.vendor || '').toLowerCase().includes(filters.vendor.toLowerCase())) return false
+    if (filters.paidBy && !(e.paid_by_name || '').toLowerCase().includes(filters.paidBy.toLowerCase())) return false
     if (filters.dateFrom && e.date && e.date.split('T')[0] < filters.dateFrom) return false
     if (filters.dateTo && e.date && e.date.split('T')[0] > filters.dateTo) return false
     if (filters.amountMin && e.amount < parseFloat(filters.amountMin)) return false
@@ -60,6 +61,7 @@ export default function FinancePage() {
   const [editForm, setEditForm] = useState({})
 
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => api.get('/projects').then(r => r.data) })
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: () => api.get('/users').then(r => r.data) })
   const mainProject = projects[0]
 
   const { data: entries = [] } = useQuery({
@@ -339,6 +341,13 @@ export default function FinancePage() {
                 <div>
                   <label className="label">Szállító / Partner</label>
                   <input className="input text-sm" placeholder="Cég neve..." value={filters.vendor} onChange={e => setFilter('vendor', e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">Ki fizette?</label>
+                  <select className="input text-sm" value={filters.paidBy} onChange={e => setFilter('paidBy', e.target.value)}>
+                    <option value="">Mindenki</option>
+                    {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
