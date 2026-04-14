@@ -1,26 +1,15 @@
-# Python
-venv/
-__pycache__/
-*.pyc
-
-# Env / secrets
 .env
-.secret
-
-# Node
+*.db
+*.sqlite
 node_modules/
 dist/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+__pycache__/
+*.pyc
+.venv/
+venv/
+uploads/
+nginx/ssl/
 *.log
-
-# VS Code
-.vscode/
-
-# Docker temp
-*.pid
-*.sock
+.DS_Store
+.secret
+.claude/

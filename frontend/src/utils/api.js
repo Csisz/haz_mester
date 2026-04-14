@@ -2,22 +2,19 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  timeout: 30000,
+  timeout: 120000, // 120 seconds - AI endpoints need more time
 })
 
 // Always inject token from localStorage before every request
 api.interceptors.request.use((config) => {
   try {
-    const stored = localStorage.getItem('epitesz-auth')
+    const stored = localStorage.getItem('epitesz_token')
     if (stored) {
-      const token = JSON.parse(stored)?.state?.token
-      if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`
-      }
+      config.headers['Authorization'] = `Bearer ${stored}`
     }
   } catch (e) {}
   
-  // Remove trailing slash to prevent 307 redirects that drop Authorization header
+  // Remove trailing slash to prevent 307 redirects
   if (config.url && config.url.endsWith('/') && config.url.length > 1) {
     config.url = config.url.slice(0, -1)
   }
@@ -31,7 +28,8 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       const path = window.location.pathname
       if (path !== '/login' && path !== '/change-password') {
-        localStorage.removeItem('epitesz-auth')
+        localStorage.removeItem('epitesz_token')
+        localStorage.removeItem('epitesz_user')
         window.location.href = '/login'
       }
     }

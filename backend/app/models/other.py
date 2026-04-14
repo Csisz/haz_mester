@@ -30,7 +30,7 @@ class FinanceEntry(Base):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
-    type = Column(String, nullable=False)
+    type = Column(String, nullable=False)  # expense, income, estimate
     category = Column(String)
     description = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
@@ -38,5 +38,7 @@ class FinanceEntry(Base):
     date = Column(DateTime, server_default=func.now())
     invoice_number = Column(String, nullable=True)
     vendor = Column(String, nullable=True)
+    paid_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # who paid
+    paid_by_name = Column(String, nullable=True)  # denormalized for quick display
     created_by = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, server_default=func.now())

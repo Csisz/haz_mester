@@ -17,12 +17,9 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const user = await login(username, password)
-      if (user.must_change_password) {
-        navigate('/change-password')
-      } else {
-        navigate('/')
-      }
+      await login(username, password)
+      // Always go to dashboard - skip must_change_password redirect
+      navigate('/')
     } catch (err) {
       setError(err.response?.data?.detail || 'Bejelentkezési hiba')
     } finally {
@@ -32,14 +29,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-emerald-600/5 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-600/5 rounded-full blur-3xl" />
       </div>
 
       <div className="w-full max-w-sm relative">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-600 rounded-2xl mb-4 shadow-lg shadow-emerald-900/50">
             <Building2 size={32} className="text-white" />
@@ -48,7 +43,6 @@ export default function LoginPage() {
           <p className="text-slate-500 text-sm mt-1">Zugligeti út 44/A — Projekt kezelő</p>
         </div>
 
-        {/* Form */}
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-white mb-6">Bejelentkezés</h2>
 
@@ -112,10 +106,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        <p className="text-center text-slate-600 text-xs mt-6">
-          Az első bejelentkezés után jelszóváltoztatás szükséges
-        </p>
       </div>
     </div>
   )

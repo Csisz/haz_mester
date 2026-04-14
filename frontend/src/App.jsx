@@ -11,26 +11,24 @@ import FinancePage from './pages/FinancePage'
 import UsersPage from './pages/UsersPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import AIAssistantPage from './pages/AIAssistantPage'
+import InvoiceScanPage from './pages/InvoiceScanPage'
+import DocumentsPage from './pages/DocumentsPage'
 
 function PrivateRoute({ children }) {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated } = useAuthStore()
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (user?.must_change_password) return <Navigate to="/change-password" replace />
   return children
 }
 
 function AuthRoute({ children }) {
-  const { isAuthenticated, user } = useAuthStore()
-  if (isAuthenticated && !user?.must_change_password) return <Navigate to="/" replace />
+  const { isAuthenticated } = useAuthStore()
+  if (isAuthenticated) return <Navigate to="/" replace />
   return children
 }
 
 export default function App() {
   const { isAuthenticated, refreshUser } = useAuthStore()
-
-  useEffect(() => {
-    if (isAuthenticated) refreshUser()
-  }, [])
+  useEffect(() => { if (isAuthenticated) refreshUser() }, [])
 
   return (
     <BrowserRouter>
@@ -43,6 +41,8 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/tasks/:id" element={<TaskDetailPage />} />
           <Route path="/finance" element={<FinancePage />} />
+          <Route path="/invoice" element={<InvoiceScanPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
           <Route path="/ai" element={<AIAssistantPage />} />
           <Route path="/users" element={<UsersPage />} />
         </Route>

@@ -176,10 +176,12 @@ export default function DashboardPage() {
 
           {aiSuggestions ? (
             <div className="space-y-3">
-              {aiSuggestions.urgent_actions?.slice(0, 3).map((action, i) => (
+              {aiSuggestions.urgent_actions?.slice(0, 4).map((action, i) => (
                 <div key={i} className="flex items-start gap-2.5">
                   <Zap size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-slate-300">{action}</p>
+                  <p className="text-sm text-slate-300 leading-snug">
+                    {typeof action === 'string' ? action : JSON.stringify(action)}
+                  </p>
                 </div>
               ))}
               {aiSuggestions.weekly_focus && (

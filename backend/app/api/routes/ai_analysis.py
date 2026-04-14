@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-import anthropic, base64, os, json, httpx
+import anthropic, base64, os, json, httpx, asyncio
 from app.db.database import get_db
 from app.models.task import Task
 from app.models.other import Attachment
@@ -64,7 +64,7 @@ class GenerateTasksRequest(BaseModel):
     context: Optional[str] = None
 
 @router.post("/analyze-task")
-def analyze_task(request: AnalyzeTaskRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def analyze_task(request: AnalyzeTaskRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == request.task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Feladat nem található")
@@ -101,8 +101,8 @@ Válaszolj JSON formátumban:
   "cost_notes": "megjegyzések a költségbecsléshez"
 }}"""
     
-    response = client.messages.create(
-        model="claude-opus-4-6",
+    response = await asyncio.to_thread(client.messages.create,
+        model="claude-sonnet-4-6",
         max_tokens=2000,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -162,8 +162,8 @@ Válaszolj JSON formátumban:
   "urgency": "alacsony/közepes/magas/kritikus"
 }}"""
     
-    response = client.messages.create(
-        model="claude-opus-4-6",
+    response = await asyncio.to_thread(client.messages.create,
+        model="claude-sonnet-4-6",
         max_tokens=1500,
         messages=[{
             "role": "user",
@@ -189,7 +189,7 @@ Válaszolj JSON formátumban:
     return analysis
 
 @router.post("/ask")
-def ask_ai(request: AskAIRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def ask_ai(request: AskAIRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     client = get_ai_client()
     
     context_addition = ""
@@ -198,14 +198,31 @@ def ask_ai(request: AskAIRequest, current_user: User = Depends(get_current_user)
         if task:
             context_addition = f"\nAKTUÁLIS FELADAT: {task.title}\n{task.description or ''}\n"
     
-    prompt = f"""{PROJECT_CONTEXT}{context_addition}
+    # Load document summaries for context
+    doc_context = ""
+    if request.project_id:
+        try:
+            from app.api.routes.documents import ProjectDocument
+            docs = db.query(ProjectDocument).filter(
+                ProjectDocument.project_id == request.project_id,
+                ProjectDocument.is_active == True,
+                ProjectDocument.ai_summary.isnot(None)
+            ).all()
+            if docs:
+                doc_context = "\n\nFELTÖLTÖTT DOKUMENTUMOK:\n"
+                for d in docs:
+                    doc_context += f"\n[{d.name}]: {d.ai_summary[:300]}\n"
+        except:
+            pass
+
+    prompt = f"""{PROJECT_CONTEXT}{context_addition}{doc_context}
 
 KÉRDÉS: {request.question}
 
-Adj részletes, praktikus választ magyarul, a valódi építési szakma szemszögéből. Légy konkrét, és ha releváns, adj cost becslést HUF-ban."""
+Adj részletes, praktikus választ magyarul. Ha releváns dokumentum van a tudásbázisban, hivatkozz rá."""
     
-    response = client.messages.create(
-        model="claude-opus-4-6",
+    response = await asyncio.to_thread(client.messages.create,
+        model="claude-sonnet-4-6",
         max_tokens=1500,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -213,7 +230,7 @@ Adj részletes, praktikus választ magyarul, a valódi építési szakma szemsz�
     return {"answer": response.content[0].text}
 
 @router.post("/generate-tasks")
-def generate_tasks(request: GenerateTasksRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def generate_tasks(request: GenerateTasksRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     client = get_ai_client()
     
     project = db.query(Project).filter(Project.id == request.project_id).first()
@@ -246,8 +263,8 @@ Válaszolj JSON formátumban:
   ]
 }}"""
     
-    response = client.messages.create(
-        model="claude-opus-4-6",
+    response = await asyncio.to_thread(client.messages.create,
+        model="claude-sonnet-4-6",
         max_tokens=3000,
         messages=[{"role": "user", "content": prompt}]
     )
@@ -262,7 +279,7 @@ Válaszolj JSON formátumban:
         return {"tasks": [], "error": "Nem sikerült feladatokat generálni"}
 
 @router.get("/suggestions/{project_id}")
-def get_project_suggestions(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_project_suggestions(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get smart suggestions for the project based on current state"""
     client = get_ai_client()
     
@@ -291,16 +308,28 @@ Válaszolj JSON formátumban:
   "weekly_focus": "mire fókuszáljon a csapat ezen a héten"
 }}"""
     
-    response = client.messages.create(
-        model="claude-opus-4-6",
+    response = await asyncio.to_thread(client.messages.create,
+        model="claude-sonnet-4-6",
         max_tokens=1000,
         messages=[{"role": "user", "content": prompt}]
     )
     
     text = response.content[0].text
+    # Strip markdown code blocks if present
+    text = text.replace('```json', '').replace('```', '').strip()
     try:
         start = text.find('{')
         end = text.rfind('}') + 1
-        return json.loads(text[start:end])
-    except:
-        return {"urgent_actions": [text], "warnings": []}
+        if start >= 0 and end > start:
+            parsed = json.loads(text[start:end])
+            # Ensure urgent_actions are plain strings, not objects
+            actions = parsed.get("urgent_actions", [])
+            parsed["urgent_actions"] = [
+                a if isinstance(a, str) else str(a) for a in actions
+            ]
+            return parsed
+    except Exception as e:
+        pass
+    # Fallback: extract numbered list from text as actions
+    lines = [l.strip().lstrip('0123456789.-) ') for l in text.split('\n') if l.strip() and len(l.strip()) > 10]
+    return {"urgent_actions": lines[:5], "warnings": [], "weekly_focus": ""}

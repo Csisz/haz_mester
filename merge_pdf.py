@@ -52,16 +52,16 @@ def merge_pdfs(input_folder, output_file):
 
 if __name__ == "__main__":
     # Mappák
-    folder1 = r"D:\zugligeti\építész tervek"
+    folder1 = r"D:\zugligeti\tartószerkezeti tervek\tartószerkezeti tervek"
     folder2 = r"D:\zugligeti\ÉPÜLETGÉPÉSZETI RAJZLISTA"
 
     # Kimeneti fájlok
-    output1 = r"D:\zugligeti\epitesz_tervek.pdf"
+    output1 = r"D:\zugligeti\tartószerkezeti_tervek.pdf"
     output2 = r"D:\zugligeti\gepeszeti_rajzok.pdf"
 
     print("PDF egyesítés indítása...")
 
-    merge_pdfs(folder1, output1)
-    merge_pdfs(folder2, output2)
+    merge_pdfs(folder1, output1)   
+    # merge_pdfs(folder2, output2)
 
     print("\nMinden feladat kész.")

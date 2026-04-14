@@ -38,12 +38,17 @@ export default function AIAssistantPage() {
   const sendMessage = async (text) => {
     if (!text.trim()) return
     const userMsg = { role: 'user', content: text }
-    setMessages(prev => [...prev, userMsg])
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
     setInput('')
     setLoading(true)
 
     try {
-      const res = await api.post('/ai/ask', { question: text, project_id: projectId })
+      // Send conversation history for multi-turn memory
+      const history = newMessages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .slice(-10)
+      const res = await api.post('/ai/ask', { question: text, project_id: projectId, history })
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.answer }])
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Hiba: ' + (err.response?.data?.detail || 'AI szolgáltatás nem elérhető') }])
