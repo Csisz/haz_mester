@@ -114,7 +114,8 @@ export default function FinancePage() {
       amount: e.amount,
       vendor: e.vendor || '',
       invoice_number: e.invoice_number || '',
-      date: e.date ? e.date.split('T')[0] : ''
+      date: e.date ? e.date.split('T')[0] : '',
+      paid_by: e.paid_by || ''
     })
   }
 
@@ -444,6 +445,13 @@ export default function FinancePage() {
                               <div>
                                 <label className="label">Dátum</label>
                                 <input type="date" className="input text-sm" value={editForm.date} onChange={ev => setEditForm(p => ({ ...p, date: ev.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="label">Ki fizette?</label>
+                                <select className="input text-sm" value={editForm.paid_by || ''} onChange={ev => setEditForm(p => ({ ...p, paid_by: ev.target.value || null }))}>
+                                  <option value="">— ismeretlen —</option>
+                                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                                </select>
                               </div>
                             </div>
                             <div className="flex gap-2 justify-end mt-3">

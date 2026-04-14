@@ -100,6 +100,7 @@ class UpdateFinanceEntryRequest(BaseModel):
     vendor: Optional[str] = None
     invoice_number: Optional[str] = None
     date: Optional[datetime] = None
+    paid_by: Optional[int] = None
 
 @router.put("/{entry_id}")
 def update_entry(entry_id: int, request: UpdateFinanceEntryRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -115,6 +116,10 @@ def update_entry(entry_id: int, request: UpdateFinanceEntryRequest, current_user
     if request.vendor is not None: entry.vendor = request.vendor
     if request.invoice_number is not None: entry.invoice_number = request.invoice_number
     if request.date is not None: entry.date = request.date
+    if request.paid_by is not None:
+        entry.paid_by = request.paid_by
+        paid_user = db.query(User).filter(User.id == request.paid_by).first()
+        entry.paid_by_name = paid_user.full_name if paid_user else None
     db.commit()
     db.refresh(entry)
     return {"id": entry.id, "message": "Bejegyzés frissítve"}
