@@ -32,30 +32,82 @@ def get_ai_client():
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def _vendor_key(v: str) -> str:
-    return (v or "").lower().strip()
+def _normalize(v) -> str:
+    return (str(v) if v is not None else "").lower().strip()
 
 
-def _find_duplicate(entry: dict, existing: list[FinanceEntry]) -> Optional[FinanceEntry]:
-    """Return the first existing entry that looks like a duplicate."""
-    vendor = _vendor_key(entry.get("vendor") or entry.get("description") or "")
-    amount = float(entry.get("amount") or 0)
-    date_str = (entry.get("date") or "")[:10]
+def _names_overlap(a: str, b: str) -> bool:
+    """True if either string contains the other (both non-empty)."""
+    a, b = _normalize(a), _normalize(b)
+    return bool(a and b and (a in b or b in a))
 
-    for e in existing:
-        e_vendor = _vendor_key(e.vendor or e.description or "")
-        if not vendor or not e_vendor:
-            continue
-        vendor_match = vendor in e_vendor or e_vendor in vendor
-        if not vendor_match:
-            continue
-        # amount within 1 %
-        if amount > 0 and abs((e.amount or 0) - amount) / max(amount, 1) < 0.01:
-            return e
-        # same date
-        if date_str and e.date and str(e.date)[:10] == date_str:
-            return e
-    return None
+
+def _amounts_match(a, b) -> bool:
+    a, b = float(a or 0), float(b or 0)
+    if a <= 0 or b <= 0:
+        return False
+    return abs(a - b) / max(a, b) < 0.01   # within 1 %
+
+
+def _dates_match(a, b) -> bool:
+    a = (_normalize(a))[:10]
+    b = (_normalize(b))[:10]
+    return bool(a and b and a == b)
+
+
+def _desc_overlap(a: str, b: str) -> bool:
+    """True if descriptions share at least 2 meaningful words (len >= 4)."""
+    words_a = {w for w in _normalize(a).split() if len(w) >= 4}
+    words_b = {w for w in _normalize(b).split() if len(w) >= 4}
+    return len(words_a & words_b) >= 2
+
+
+def _find_duplicate(entry: dict, existing: list) -> Optional[FinanceEntry]:
+    """
+    Return the best-matching existing entry if at least 2 distinct fields agree.
+    Fields checked: amount, date, payer (vendor/paid_by_name), description.
+    Any two-field overlap triggers a duplicate warning.
+    """
+    e_amount = entry.get("amount")
+    e_date   = (entry.get("date") or "")[:10]
+    # payer: AI may put the name in vendor or description
+    e_payer  = _normalize(entry.get("vendor") or "")
+    e_desc   = _normalize(entry.get("description") or "")
+
+    best: Optional[FinanceEntry] = None
+    best_score = 0
+
+    for db in existing:
+        score = 0
+
+        # 1. amount
+        if _amounts_match(e_amount, db.amount):
+            score += 1
+
+        # 2. date
+        if _dates_match(e_date, db.date):
+            score += 1
+
+        # 3. payer  (entry vendor vs db vendor OR db paid_by_name)
+        db_payer_candidates = [
+            _normalize(db.vendor or ""),
+            _normalize(db.paid_by_name or ""),
+        ]
+        if e_payer and any(_names_overlap(e_payer, c) for c in db_payer_candidates if c):
+            score += 1
+        # also check if the entry description contains the db payer name
+        elif e_desc and any(_names_overlap(e_desc, c) for c in db_payer_candidates if c):
+            score += 1
+
+        # 4. description
+        if _desc_overlap(e_desc, db.description or ""):
+            score += 1
+
+        if score >= 2 and score > best_score:
+            best_score = score
+            best = db
+
+    return best
 
 
 def _parse_excel_to_text(content: bytes, filename: str) -> str:
@@ -284,11 +336,13 @@ Fontos szabályok:
         if not row.get("description"):
             continue
         dup = _find_duplicate(row, existing)
+        dup_dict = _entry_to_dict(dup) if dup else None
         result_rows.append({
             **row,
             "amount": float(row.get("amount") or 0),
-            "action": "save",          # default: save as new
-            "duplicate": _entry_to_dict(dup) if dup else None,
+            # duplicate rows get no default action → user MUST choose
+            "action": None if dup_dict else "save",
+            "duplicate": dup_dict,
         })
 
     return {

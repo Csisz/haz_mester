@@ -40,17 +40,21 @@ function UserSelector({ value, onChange, users }) {
 function ConflictResolver({ row, index, onChange }) {
   const [expanded, setExpanded] = useState(true)
   const dup = row.duplicate
+  const unresolved = row.action === null || row.action === undefined
 
   return (
-    <div className="mt-2 rounded-lg border border-amber-600/40 bg-amber-900/10 text-xs overflow-hidden">
+    <div className={`mt-2 rounded-lg border text-xs overflow-hidden ${unresolved ? 'border-red-500/60 bg-red-900/10' : 'border-amber-600/40 bg-amber-900/10'}`}>
       <button
         type="button"
         onClick={() => setExpanded(v => !v)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-amber-400 hover:bg-amber-900/20 transition-colors"
+        className={`flex items-center gap-2 w-full px-3 py-2 transition-colors ${unresolved ? 'text-red-400 hover:bg-red-900/20' : 'text-amber-400 hover:bg-amber-900/20'}`}
       >
         <AlertTriangle size={13} />
-        <span className="font-medium">Lehetséges duplikáció: {dup.vendor || dup.description}</span>
-        <span className="ml-auto text-amber-500">{formatCurrency(dup.amount)} · {dup.date}</span>
+        <span className="font-medium">
+          {unresolved ? '⚠ Döntés szükséges — ' : 'Egyezés: '}
+          {dup.vendor || dup.description}
+        </span>
+        <span className="ml-auto opacity-70">{formatCurrency(dup.amount)} · {dup.date}</span>
         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </button>
 
@@ -75,17 +79,18 @@ function ConflictResolver({ row, index, onChange }) {
           </div>
 
           {/* action buttons */}
+          <p className="text-slate-400 font-medium">Mit tegyek ezzel a tétellel?</p>
           <div className="flex gap-1.5 flex-wrap">
             {[
-              { action: 'save',    label: 'Mindkettő mentése',    icon: <Save size={11} />,        cls: 'bg-slate-700 text-slate-200 hover:bg-slate-600' },
-              { action: 'skip',    label: 'Kihagyás (megtartom)',  icon: <SkipForward size={11} />, cls: 'bg-slate-700 text-slate-200 hover:bg-slate-600' },
-              { action: 'replace', label: 'Felülírás',             icon: <RefreshCw size={11} />,   cls: 'bg-amber-700/60 text-amber-200 hover:bg-amber-700' },
+              { action: 'save',    label: 'Mindkettő mentése',   icon: <Save size={11} />,        cls: 'bg-slate-700 text-slate-200 hover:bg-slate-600' },
+              { action: 'skip',    label: 'Kihagyás (marad régi)', icon: <SkipForward size={11} />, cls: 'bg-slate-700 text-slate-200 hover:bg-slate-600' },
+              { action: 'replace', label: 'Csere (régi törlése)', icon: <RefreshCw size={11} />,   cls: 'bg-amber-700/60 text-amber-200 hover:bg-amber-700' },
             ].map(({ action, label, icon, cls }) => (
               <button
                 key={action}
                 type="button"
                 onClick={() => onChange(index, 'action', action)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ring-1 ring-transparent ${cls} ${row.action === action ? 'ring-emerald-500' : ''}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ring-2 ring-transparent ${cls} ${row.action === action ? 'ring-emerald-500' : ''}`}
               >
                 {icon}{label}
                 {row.action === action && <CheckCircle size={11} className="text-emerald-400" />}
@@ -337,6 +342,7 @@ export default function InvoiceScanPage() {
   const pieData = summary?.by_person?.map(p => ({ name: p.name.split(' ').slice(-1)[0], value: p.total })) || []
 
   const dupCount = reviewRows?.filter(r => r.duplicate).length || 0
+  const unresolvedCount = reviewRows?.filter(r => r.duplicate && (r.action === null || r.action === undefined)).length || 0
   const skipCount = reviewRows?.filter(r => r.action === 'skip').length || 0
   const saveCount = reviewRows?.filter(r => r.action === 'save').length || 0
   const replaceCount = reviewRows?.filter(r => r.action === 'replace').length || 0
@@ -503,10 +509,17 @@ export default function InvoiceScanPage() {
               {reviewRows && !saveResult && (
                 <div className="space-y-4">
                   {/* summary bar */}
-                  <div className="card p-3 flex flex-wrap gap-3 text-xs">
+                  <div className={`card p-3 flex flex-wrap gap-3 text-xs ${unresolvedCount > 0 ? 'border-red-500/40' : ''}`}>
                     <span className="text-slate-400">{reviewRows.length} sor kinyerve</span>
-                    {dupCount > 0 && <span className="text-amber-400 flex items-center gap-1"><AlertTriangle size={11} />{dupCount} lehetséges duplikáció</span>}
-                    <span className="text-emerald-400 ml-auto">{saveCount} mentésre · {replaceCount} felülírásra · {skipCount} kihagyva vár</span>
+                    {unresolvedCount > 0 && (
+                      <span className="text-red-400 flex items-center gap-1 font-medium">
+                        <AlertTriangle size={11} />{unresolvedCount} döntetlen egyezés — válassz minden pirosnál!
+                      </span>
+                    )}
+                    {dupCount > 0 && unresolvedCount === 0 && (
+                      <span className="text-emerald-400 flex items-center gap-1"><CheckCircle size={11} />{dupCount} egyezés kezelve</span>
+                    )}
+                    <span className="text-slate-400 ml-auto">{saveCount} új · {replaceCount} csere · {skipCount} kihagyva</span>
                   </div>
 
                   {/* rows */}
@@ -525,9 +538,14 @@ export default function InvoiceScanPage() {
                     </button>
                     <button
                       onClick={handleSaveEntries}
-                      disabled={saving || reviewRows.every(r => r.action === 'skip')}
+                      disabled={saving || unresolvedCount > 0 || reviewRows.every(r => r.action === 'skip')}
+                      title={unresolvedCount > 0 ? `${unresolvedCount} egyezésnél még döntés szükséges` : ''}
                       className="btn-primary text-sm flex-[2] justify-center disabled:opacity-50">
-                      {saving ? <><Loader size={15} className="animate-spin" /> Mentés...</> : <><Save size={15} /> Mentés ({(saveCount + replaceCount)} tétel)</>}
+                      {saving
+                        ? <><Loader size={15} className="animate-spin" /> Mentés...</>
+                        : unresolvedCount > 0
+                          ? <><AlertTriangle size={15} /> {unresolvedCount} döntetlen egyezés</>
+                          : <><Save size={15} /> Mentés ({saveCount + replaceCount} tétel)</>}
                     </button>
                   </div>
                 </div>
