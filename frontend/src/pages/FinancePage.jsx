@@ -40,7 +40,8 @@ function applyFilters(entries, filters) {
     if (filters.type && e.type !== filters.type) return false
     if (filters.category && e.category !== filters.category) return false
     if (filters.vendor && !(e.vendor || '').toLowerCase().includes(filters.vendor.toLowerCase())) return false
-    if (filters.paidBy && !(e.paid_by_name || '').toLowerCase().includes(filters.paidBy.toLowerCase())) return false
+    if (filters.paidBy === '__unknown__' && e.paid_by_name) return false
+    if (filters.paidBy && filters.paidBy !== '__unknown__' && !(e.paid_by_name || '').toLowerCase().includes(filters.paidBy.toLowerCase())) return false
     if (filters.dateFrom && e.date && e.date.split('T')[0] < filters.dateFrom) return false
     if (filters.dateTo && e.date && e.date.split('T')[0] > filters.dateTo) return false
     if (filters.amountMin && e.amount < parseFloat(filters.amountMin)) return false
@@ -346,6 +347,7 @@ export default function FinancePage() {
                   <label className="label">Ki fizette?</label>
                   <select className="input text-sm" value={filters.paidBy} onChange={e => setFilter('paidBy', e.target.value)}>
                     <option value="">Mindenki</option>
+                    <option value="__unknown__">— ismeretlen —</option>
                     {users.map(u => <option key={u.id} value={u.full_name}>{u.full_name}</option>)}
                   </select>
                 </div>
