@@ -99,7 +99,14 @@ function ConflictResolver({ row, index, onChange }) {
 }
 
 // ── editable row in the review table ─────────────────────────────────────────
-function ReviewRow({ row, index, onChange, mainProject }) {
+function ReviewRow({ row, index, onChange, users }) {
+  const handlePaidBy = (e) => {
+    const uid = e.target.value ? parseInt(e.target.value) : null
+    const user = users.find(u => u.id === uid)
+    onChange(index, '_paidBy', uid)
+    onChange(index, '_paidByName', user?.full_name || '')
+  }
+
   return (
     <div className={`p-3 rounded-lg border transition-colors ${
       row.action === 'skip'
@@ -148,6 +155,13 @@ function ReviewRow({ row, index, onChange, mainProject }) {
           <input type="date" className="input text-sm" value={row.date || ''}
             onChange={e => onChange(index, 'date', e.target.value)} />
         </div>
+        <div>
+          <label className="label">Ki fizette?</label>
+          <select className="input text-sm" value={row._paidBy || ''} onChange={handlePaidBy}>
+            <option value="">— ismeretlen —</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+          </select>
+        </div>
       </div>
 
       {row.duplicate && (
@@ -172,10 +186,8 @@ export default function InvoiceScanPage() {
 
   // excel tab
   const [excelFile, setExcelFile] = useState(null)
-  const [excelPaidBy, setExcelPaidBy] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [reviewRows, setReviewRows] = useState(null) // null = not yet analyzed
-  const [excelPaidByInfo, setExcelPaidByInfo] = useState(null)
   const [excelError, setExcelError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState(null)
@@ -250,17 +262,14 @@ export default function InvoiceScanPage() {
 
   // ── excel analyze handler ────────────────────────────────────────────────
   const handleAnalyzeExcel = async () => {
-    if (!excelFile || !excelPaidBy || !mainProject) return
+    if (!excelFile || !mainProject) return
     setAnalyzing(true); setExcelError(''); setReviewRows(null); setSaveResult(null)
     try {
       const form = new FormData()
       form.append('file', excelFile)
       form.append('project_id', mainProject.id)
-      form.append('paid_by_user_id', excelPaidBy)
       const res = await api.post('/invoice/analyze-excel', form, { headers: { 'Content-Type': 'multipart/form-data' } })
-      const paidByUser = users.find(u => u.id === excelPaidBy)
-      setReviewRows(res.data.rows.map(row => ({ ...row, _paidBy: excelPaidBy, _paidByName: paidByUser?.full_name || '' })))
-      setExcelPaidByInfo(res.data.paid_by)
+      setReviewRows(res.data.rows.map(row => ({ ...row, _paidBy: null, _paidByName: '' })))
     } catch (err) {
       setExcelError(err.response?.data?.detail || 'Hiba az elemzés során')
     } finally { setAnalyzing(false) }
@@ -475,12 +484,7 @@ export default function InvoiceScanPage() {
                     )}
                   </div>
 
-                  <div>
-                    <label className="label">Ki fizette a tételeket? *</label>
-                    <UserSelector value={excelPaidBy} onChange={setExcelPaidBy} users={users} />
-                  </div>
-
-                  <button onClick={handleAnalyzeExcel} disabled={!excelFile || !excelPaidBy || analyzing}
+                  <button onClick={handleAnalyzeExcel} disabled={!excelFile || analyzing}
                     className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
                     {analyzing
                       ? <><Loader size={18} className="animate-spin" /> AI elemzés folyamatban...</>
@@ -508,7 +512,7 @@ export default function InvoiceScanPage() {
                   {/* rows */}
                   <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
                     {reviewRows.map((row, i) => (
-                      <ReviewRow key={i} row={row} index={i} onChange={handleRowChange} mainProject={mainProject} />
+                      <ReviewRow key={i} row={row} index={i} onChange={handleRowChange} users={users} />
                     ))}
                   </div>
 
@@ -539,7 +543,7 @@ export default function InvoiceScanPage() {
                     {saveResult.skipped > 0 && <div className="flex justify-between"><span className="text-slate-400">Kihagyva:</span><span className="text-slate-500">{saveResult.skipped} db</span></div>}
                   </div>
                   <button
-                    onClick={() => { setReviewRows(null); setExcelFile(null); setSaveResult(null); setExcelPaidBy('') }}
+                    onClick={() => { setReviewRows(null); setExcelFile(null); setSaveResult(null) }}
                     className="w-full btn-secondary text-xs justify-center">
                     Új Excel importálása
                   </button>

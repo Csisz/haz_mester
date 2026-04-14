@@ -205,7 +205,7 @@ Fontos:
 async def analyze_excel(
     file: UploadFile = File(...),
     project_id: int = Form(...),
-    paid_by_user_id: int = Form(...),
+    paid_by_user_id: Optional[int] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -218,9 +218,9 @@ async def analyze_excel(
     if not (fname.lower().endswith(".xlsx") or fname.lower().endswith(".csv")):
         raise HTTPException(status_code=400, detail="Csak .xlsx vagy .csv fájl fogadható el")
 
-    paid_by = db.query(User).filter(User.id == paid_by_user_id).first()
-    if not paid_by:
-        raise HTTPException(status_code=404, detail="Felhasználó nem található")
+    paid_by = None
+    if paid_by_user_id:
+        paid_by = db.query(User).filter(User.id == paid_by_user_id).first()
 
     try:
         table_text = _parse_excel_to_text(content, fname)
@@ -293,7 +293,7 @@ Fontos szabályok:
 
     return {
         "rows": result_rows,
-        "paid_by": {"id": paid_by.id, "full_name": paid_by.full_name},
+        "paid_by": {"id": paid_by.id, "full_name": paid_by.full_name} if paid_by else None,
         "total_rows": len(result_rows),
         "duplicate_count": sum(1 for r in result_rows if r["duplicate"]),
     }
